@@ -79,4 +79,19 @@ const originalRecordSave=saveRecord;saveRecord=function(){if(!recordName.value.t
 state.records.forEach(r=>{if(!r.date)r.date='历史记录'});
 renderTasks();renderTimeline();showPage('record');
 setInterval(()=>{renderTasks();renderTimeline()},60000);
+// Separate camera capture from the unrestricted image picker.
+const albumInput=document.createElement('input');albumInput.type='file';albumInput.accept='image/*';albumInput.hidden=true;albumInput.id='albumInput';photoInput.after(albumInput);
+const albumButton=document.createElement('button');albumButton.className='voice';albumButton.textContent='从相册选择';albumButton.style.cssText='width:100%;margin-bottom:12px';albumButton.onclick=()=>albumInput.click();photoBtn.after(albumButton);
+const preview=document.createElement('img');preview.alt='本次选择的照片';preview.hidden=true;preview.style.cssText='max-width:100%;max-height:200px;object-fit:contain;border-radius:12px';albumButton.after(preview);
+const photoStatus=document.createElement('p');photoStatus.className='subtle';photoStatus.setAttribute('role','status');preview.after(photoStatus);let previewURL=null;
+function clearPhoto(){if(previewURL)URL.revokeObjectURL(previewURL);previewURL=null;preview.removeAttribute('src');preview.hidden=true;photoInput.value='';albumInput.value='';photoStatus.textContent='照片仅供本次填写参考，暂不保存照片或自动识别。'}
+function choosePhoto(event){const file=event.target.files[0];if(!file)return;if(!file.type.startsWith('image/')){photoStatus.textContent='请选择图片文件。';return}if(previewURL)URL.revokeObjectURL(previewURL);previewURL=URL.createObjectURL(file);preview.src=previewURL;preview.hidden=false;photoStatus.textContent='照片已选择。请补充食物名称，再估算热量。'}
+photoInput.onchange=choosePhoto;albumInput.onchange=choosePhoto;preview.onerror=()=>{preview.hidden=true;photoStatus.textContent='照片格式无法预览，可换用 JPG / PNG，或直接填写食物。'};
+document.querySelector('#modal .sheet>p').textContent='可拍照或选择相册照片，也可以直接填写。';document.querySelector('#modal .result>b').textContent='记录内容';
+const caloriesBox=document.createElement('div');caloriesBox.innerHTML='<label>参考食物<select id="calorieFood" style="width:100%;padding:10px;font:inherit"><option value="">选择参考食物</option><option value="米饭">熟米饭</option><option value="鸡蛋">鸡蛋</option><option value="香蕉">香蕉</option><option value="面包">普通面包</option><option value="鸡胸肉">熟鸡胸肉</option></select></label><label>估计重量（克）<input id="foodGrams" type="number" min="1" max="5000" placeholder="例如：150"></label><button class="voice" type="button" onclick="estimateCalories()">粗估热量</button><label>本次热量（kcal，可修改）<input id="foodCalories" type="number" min="0" max="20000" placeholder="选填，包装营养表优先"></label><p id="calorieHint" class="subtle" role="status">V1 示例食物表，仅供粗略参考；不含额外油、酱料。混合菜品请参考包装或手动填写总热量。</p>';
+foodExtra.before(caloriesBox);
+const calorieTable={'米饭':130,'鸡蛋':155,'香蕉':89,'面包':265,'鸡胸肉':165};
+function estimateCalories(){const name=$('calorieFood').value;const grams=Number($('foodGrams').value);if(!name||!Number.isFinite(grams)||grams<=0||grams>5000){$('calorieHint').textContent='请选择参考食物，并填写 1–5000 克的估计重量。';return}$('foodCalories').value=Math.round(calorieTable[name]*grams/100);$('calorieHint').textContent='按 '+name+' '+grams+' 克估算，仅包含所选食物；烹饪方式和份量会造成误差。'}
+const galleryOpen=openRecord;openRecord=function(k){galleryOpen(k);clearPhoto();photoBtn.textContent='拍照';photoBtn.style.minHeight='52px';caloriesBox.hidden=k!=='food';$('foodCalories').value='';$('foodGrams').value='';$('calorieFood').value='';$('calorieHint').textContent='V1 示例食物表，仅供粗略参考；不含额外油、酱料。混合菜品请手动填写总热量。'};
+const gallerySave=saveRecord;saveRecord=function(){if(!recordName.value.trim()){recordName.focus();return}const value=$('foodCalories').value;if(kind==='food'&&value!==''){const kcal=Number(value);if(!Number.isFinite(kcal)||kcal<0||kcal>20000){$('calorieHint').textContent='请填写有效热量数值，或留空。';return}recordValue.value=(recordValue.value?recordValue.value+' · ':'')+'约 '+kcal+' kcal（粗估）'}gallerySave()};
 </script></body></html>

@@ -280,4 +280,52 @@ renderTasks=function(){if(!$('plannerTimeline'))return;$('plannerDay').value=day
   `;document.head.append(style);
   const buddy=document.createElement('aside');buddy.id='lumiBuddy';buddy.setAttribute('aria-hidden','true');buddy.innerHTML='<span>🍀</span> Lumi 陪你闯关';document.body.append(buddy);
 })();
+</script>
+<script>
+/* Daily feedback: a gentle next-day review for food and plans. Stored locally with existing records. */
+(()=>{
+  const iso=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+  const shift=(value,days)=>{const d=new Date(value+'T12:00:00');d.setDate(d.getDate()+days);return iso(d)};
+  const yesterday=()=>shift(localDay(),-1);
+  let reviewDay=yesterday();
+  const label=value=>{const d=new Date(value+'T12:00:00');return d.toLocaleDateString('zh-CN',{month:'long',day:'numeric',weekday:'short'}).replace('周','星期')};
+  const put=(kind,values,status)=>{
+    try{
+      state.feedback=state.feedback||{};
+      state.feedback[reviewDay]=state.feedback[reviewDay]||{};
+      state.feedback[reviewDay][kind]={...values,updatedAt:Date.now()};
+      localStorage.setItem('luma-v2',JSON.stringify(state));
+      status.textContent='已保存 '+label(reviewDay)+' 的点评。';
+    }catch(e){status.textContent='点评暂未保存，原有记录没有改动。请先导出备份后再试。'}
+  };
+  const panel=(kind,title,icon,fields)=>{
+    const section=document.createElement('section');section.className='feedback-panel';section.dataset.feedback=kind;
+    section.innerHTML='<div class="feedback-head"><div><p class="eyebrow">YESTERDAY REVIEW</p><h2>'+icon+' '+title+'</h2><p>不打分，只把昨天的经验留给今天。</p></div><button type="button" class="feedback-toggle" aria-expanded="false">写点评</button></div><div class="feedback-body" hidden><div class="feedback-date"><button type="button" aria-label="前一天">‹</button><strong></strong><button type="button" aria-label="后一天">›</button></div></div>';
+    const body=section.querySelector('.feedback-body');
+    fields.forEach(f=>{const label=document.createElement('label');label.className='feedback-field';label.textContent=f.label;const input=document.createElement(f.type==='select'?'select':'textarea');input.name=f.name;if(f.type==='select'){f.options.forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;input.append(o)})}else{input.placeholder=f.placeholder;input.rows=2}label.append(input);body.append(label)});
+    const save=document.createElement('button');save.type='button';save.className='primary feedback-save';save.textContent='保存这次回顾';
+    const status=document.createElement('p');status.className='feedback-status subtle';status.setAttribute('role','status');body.append(save,status);
+    const read=()=>state.feedback?.[reviewDay]?.[kind]||{};
+    const render=()=>{const entry=read();section.querySelector('.feedback-date strong').textContent=label(reviewDay);fields.forEach(f=>{const input=section.querySelector('[name="'+f.name+'"]');input.value=entry[f.name]||''});};
+    section.querySelector('.feedback-toggle').onclick=()=>{const open=body.hidden;body.hidden=!open;section.querySelector('.feedback-toggle').textContent=open?'收起':'写点评';section.querySelector('.feedback-toggle').setAttribute('aria-expanded',String(open));if(open)render()};
+    const [back,forward]=section.querySelectorAll('.feedback-date button');back.onclick=()=>{reviewDay=shift(reviewDay,-1);render()};forward.onclick=()=>{reviewDay=shift(reviewDay,1);render()};
+    save.onclick=()=>{const values={};fields.forEach(f=>values[f.name]=section.querySelector('[name="'+f.name+'"]').value.trim());put(kind,values,status)};
+    return section;
+  };
+  const food=panel('food','饮食与想吃的回顾','🍓',[
+    {name:'good',label:'昨天我做得好的一件事',placeholder:'例如：坐下来慢慢吃完了晚饭',type:'text'},
+    {name:'notice',label:'我想留意的一个时刻',placeholder:'例如：下午很累时容易想吃零食',type:'text'},
+    {name:'tomorrow',label:'今天想怎样照顾自己',placeholder:'例如：下午先准备一份有饱腹感的加餐',type:'text'}
+  ]);
+  const plan=panel('plan','昨日计划回顾','🗺️',[
+    {name:'rhythm',label:'昨天的节奏',type:'select',options:[['','选择一个感受'],['顺畅','顺畅'],['有点赶','有点赶'],['需要休息','需要休息'],['计划太满','计划太满']]},
+    {name:'good',label:'最值得肯定的一步',placeholder:'例如：完成了最重要的那件事',type:'text'},
+    {name:'adjust',label:'下次怎样安排会更顺',placeholder:'例如：把运动安排到傍晚，留出缓冲时间',type:'text'}
+  ]);
+  const foodAnchor=document.querySelector('#record .food-primary');if(foodAnchor)foodAnchor.after(food);
+  const planAnchor=document.getElementById('plannerWeek');if(planAnchor)planAnchor.after(plan);else document.querySelector('#today .title')?.after(plan);
+  const css=document.createElement('style');css.textContent=`
+    .feedback-panel{margin:16px 0;padding:16px 17px;border:2px solid #fff;border-radius:22px;background:linear-gradient(135deg,#fff8e7,#f3f8ee);box-shadow:0 7px 0 #e4ded2,0 14px 25px #665a5410}.feedback-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.feedback-head h2{margin:0;font-family:ui-rounded,"Arial Rounded MT Bold",sans-serif;font-size:1.05rem;color:#526b5f}.feedback-head p:not(.eyebrow){margin:3px 0 0;color:#817990;font-size:.78rem}.feedback-toggle{flex:none;border:0;border-radius:12px;padding:9px 11px;background:#fff;color:#5c7769;font:inherit;font-size:.8rem;font-weight:800;box-shadow:0 3px 0 #d9ded2}.feedback-body{margin-top:14px;padding-top:13px;border-top:1px dashed #d7d7cc}.feedback-date{display:flex;align-items:center;justify-content:center;gap:16px;margin:0 0 12px;font-size:.82rem;color:#6e786f}.feedback-date button{width:31px;height:31px;border:0;border-radius:50%;background:#fff;color:#62766b;font-size:1.25rem}.feedback-field{display:block;margin:11px 0;color:#665e74;font-size:.82rem;font-weight:800}.feedback-field textarea,.feedback-field select{display:block;width:100%;margin-top:6px;padding:10px 11px;border:1px solid #ddd5e3;border-radius:12px;background:#fffdfb;color:#4b4552;font:inherit;font-weight:400;resize:vertical}.feedback-field select{height:42px}.feedback-save{margin-top:3px;min-height:43px;box-shadow:0 4px 0 #4f7768}.feedback-status{min-height:20px;margin:8px 0 0!important}@media(max-width:780px){.feedback-panel{padding:14px}.feedback-head h2{font-size:1rem}.feedback-head p:not(.eyebrow){max-width:205px}.feedback-toggle{padding:8px 10px}}
+  `;document.head.append(css);
+})();
 </script></body></html>

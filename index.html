@@ -328,4 +328,33 @@ renderTasks=function(){if(!$('plannerTimeline'))return;$('plannerDay').value=day
     .feedback-panel{margin:16px 0;padding:16px 17px;border:2px solid #fff;border-radius:22px;background:linear-gradient(135deg,#fff8e7,#f3f8ee);box-shadow:0 7px 0 #e4ded2,0 14px 25px #665a5410}.feedback-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.feedback-head h2{margin:0;font-family:ui-rounded,"Arial Rounded MT Bold",sans-serif;font-size:1.05rem;color:#526b5f}.feedback-head p:not(.eyebrow){margin:3px 0 0;color:#817990;font-size:.78rem}.feedback-toggle{flex:none;border:0;border-radius:12px;padding:9px 11px;background:#fff;color:#5c7769;font:inherit;font-size:.8rem;font-weight:800;box-shadow:0 3px 0 #d9ded2}.feedback-body{margin-top:14px;padding-top:13px;border-top:1px dashed #d7d7cc}.feedback-date{display:flex;align-items:center;justify-content:center;gap:16px;margin:0 0 12px;font-size:.82rem;color:#6e786f}.feedback-date button{width:31px;height:31px;border:0;border-radius:50%;background:#fff;color:#62766b;font-size:1.25rem}.feedback-field{display:block;margin:11px 0;color:#665e74;font-size:.82rem;font-weight:800}.feedback-field textarea,.feedback-field select{display:block;width:100%;margin-top:6px;padding:10px 11px;border:1px solid #ddd5e3;border-radius:12px;background:#fffdfb;color:#4b4552;font:inherit;font-weight:400;resize:vertical}.feedback-field select{height:42px}.feedback-save{margin-top:3px;min-height:43px;box-shadow:0 4px 0 #4f7768}.feedback-status{min-height:20px;margin:8px 0 0!important}@media(max-width:780px){.feedback-panel{padding:14px}.feedback-head h2{font-size:1rem}.feedback-head p:not(.eyebrow){max-width:205px}.feedback-toggle{padding:8px 10px}}
   `;document.head.append(css);
 })();
+</script>
+<script>
+/* Substep controls: keep each small step independently editable, removable, or movable. */
+(()=>{
+  const baseRenderTasks=renderTasks;
+  const tomorrowOf=value=>{const d=new Date(value+'T12:00:00');d.setDate(d.getDate()+1);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
+  const updateSteps=(item,steps)=>update(item,{subtasks:steps});
+  function addControls(){
+    const ordered=items().filter(x=>!x.deleted).sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99'));
+    document.querySelectorAll('#plannerTimeline .plan-event').forEach((event,eventIndex)=>{
+      const item=ordered[eventIndex];
+      if(!item)return;
+      const steps=item.subtasks||[];
+      event.querySelectorAll('.task-steps > label').forEach((line,index)=>{
+        if(line.nextElementSibling?.classList.contains('substep-actions'))return;
+        const step=steps[index];if(!step)return;
+        const actions=document.createElement('div');actions.className='substep-actions';
+        const button=(text,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=text;b.onclick=fn;actions.append(b)};
+        button('编辑',()=>{const next=prompt('修改子步骤',step.title);if(next===null)return;const title=next.trim();if(!title){alert('子步骤名称不能为空。');return}updateSteps(item,steps.map((x,i)=>i===index?{...x,title}:x))});
+        button('移到明天',()=>{if(!confirm('把「'+step.title+'」移到明天的计划吗？它会成为明天的一件独立事项。'))return;const nextDay=tomorrowOf(item.date);const remaining=steps.filter((_,i)=>i!==index);commit(s=>{let parent=s.plannerItems.find(x=>x.id===item.id);if(!parent){parent={...item,subtasks:[]};s.plannerItems.push(parent)}parent.subtasks=remaining;s.plannerItems.push({id:crypto.randomUUID(),title:step.title,date:nextDay,time:item.time||'',done:false,notes:'从「'+item.title+'」的子步骤移来',subtasks:[]})})});
+        button('删除',()=>{if(confirm('只删除子步骤「'+step.title+'」？不会删除整项计划。'))updateSteps(item,steps.filter((_,i)=>i!==index))});
+        line.after(actions);
+      });
+    });
+  }
+  renderTasks=function(){baseRenderTasks();addControls()};
+  const css=document.createElement('style');css.textContent='.task-steps .substep-actions{display:flex;flex-wrap:wrap;gap:6px;margin:-1px 0 9px 30px}.task-steps .substep-actions button{min-height:29px!important;padding:4px 8px!important;border:1px solid #d9d2e3!important;border-radius:9px!important;background:#fffdfa!important;color:#6a6379!important;font-size:.73rem!important;box-shadow:none!important}.task-steps .substep-actions button:nth-child(2){color:#55796a!important;border-color:#c6ded0!important}.task-steps .substep-actions button:last-child{color:#9a6470!important;border-color:#ebd2d7!important}';document.head.append(css);
+  renderTasks();
+})();
 </script></body></html>
